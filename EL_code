@@ -1,0 +1,274 @@
+
+
+{instead of finding a fib candle, then waiting to see if a 2nd bar will form nicely. We wait for a qualified 2nd bar first, then we check for fib bar and take trade.	}
+
+
+[Intrabarordergeneration = true];
+Once Clearprintlog;
+Vars:
+//bull
+	intrabarpersist BullFib_Bottomwick(0), 
+	intrabarpersist BullFib_Upperwick(0),
+	intrabarpersist BullFib_Range(0),
+	intrabarpersist BullFib(False),
+	Intrabarpersist BullSixtysix(0),
+	intrabarpersist BullSecondBarLow(0),
+	intrabarpersist BullSecondBar_Range(0),
+	intrabarpersist BullSecondBar_Upperwick(0),
+	intrabarpersist BullSecondBar_Bottomwick(0),
+	intrabarpersist BullSecondBar_CandlebodyRange(0),
+	intrabarpersist BullFib_CandlebodyRange(0),
+	intrabarpersist BullTarget(0),
+	Intrabarpersist BullCondition(False),
+	Intrabarpersist BullTargetFar(0),
+	Intrabarpersist BullMoveStop(0),
+
+//bear	
+	intrabarpersist BearFib_Bottomwick(0),
+	intrabarpersist BearFib_Upperwick(0),
+	intrabarpersist BearFib_Range(0),
+	intrabarpersist BearFib(False),
+	intrabarpersist SecondBar_Range(0),
+	intrabarpersist SecondBar_Upperwick(0),
+	intrabarpersist SecondBar_Bottomwick(0),
+	intrabarpersist Targett(0),
+	intrabarpersist BearFib_CandlebodyRange(0),
+	intrabarpersist SecondBar_CandlebodyRange(0),
+	intrabarpersist BearsixtySix(0),
+	Intrabarpersist BearCondition(False), 
+	Intrabarpersist BearTargetFar(0),
+	Intrabarpersist BearMoveStop(0),
+	
+	Intrabarpersist ShorttermATR(0),
+	Intrabarpersist ATR(0),
+	Intrabarpersist LongTermATR(0),
+	count(0),
+	Insideonesd(0),
+	Insidetwosd(0),
+	TruerangeSD(0),
+	TruerangeStandardDev(0),
+	ii(0),
+	num(100),
+	iii(0),
+	
+	BullTargetone(0),
+	BullTargettwo(0),
+	BullTargetthree(0),
+	BullTargetfour(0),
+	BullTargetfive(0),
+	BullTargetsix(0),
+	BullSecondBarLowStop(0),
+	
+	BearTargetone(0),
+	BearTargettwo(0),
+	BearTargetthree(0),
+	BearTargetfour(0),
+	BearTargetfive(0),
+	BearTargetsix(0),
+	BearSecondBarhighStop(0),
+	Intrabarpersist MP (0),
+	
+	legin(false),
+	legout(false),
+	greenlegin(false),
+	greenlegout(false),
+	counter(0),
+	basecondition(false);
+	
+	
+		
+//Atr
+ATR = AvgTrueRange( 24 ) ;
+LongtermATR = AvgTrueRange( 84 ); 
+ShorttermATR = AverageFC(Truerange, 5);
+
+{If barstatus(1) = 2 then
+Begin
+	count = 0;
+	Insideonesd = 0;
+	Insidetwosd = 0;
+	TruerangeSD = 0;
+	TruerangeStandardDev = 0; 
+	For ii = 1 to num //not 0 because the current bar has not closed yet, so we shouldn't take its data and treat it like it like the others. 
+	Begin
+		TruerangeSD = TruerangeSD + Power((Truerange[ii]-Atr[ii]),2); //seperate logic(that's why it's indented.	
+		if num <> 0 then //Just so we don't divide by 0 error.
+			begin
+				If ii = num then TruerangeStandardDev = Squareroot(TruerangeSD/num);
+			End;
+		
+		If ii = num then 
+		Begin
+			For iii = 1 to num
+			Begin
+				if truerange[iii] <= Atr[iii]+TruerangeStandarddev and truerange[iii] >= Atr[iii]-TruerangeStandarddev then InsideOneSD = InsideOneSD + 1;
+				if truerange[iii] <= Atr[iii]+TruerangeStandarddev+TruerangeStandarddev and truerange[iii] >= Atr[iii]-TruerangeStandarddev-TruerangeStandarddev then InsidetwoSD = InsidetwoSD + 1;
+				Count = count + 1;
+			//If iii = num then print("The last ", count, " bars, ", iff(count<>0, InsideoneSD/count,1)*100, " % of them were within 1SD. ", "And ", iff(count<>0, InsidetwoSD/count,1)*100, " % of them were within 2SD." , truerangestandarddev ); 
+			End;
+		End;
+	end;
+End;}
+	
+////////////////////////////////////////////////////////////////////////////////
+
+
+//Basically, there needs to be a holding level in the middle of leg-in(>atr) and leg-out(>atr)
+//If green leg in is true then Legin = true. Until a red bar prints or price gets below 66% retracement of legin.
+//then counter = counter + 1, if next bar after leg-in is base and green, then go on to next candle... 
+//now counter = counter + 1 again, if this bar after the legin & basing candle is another basing green candle, then next..
+//now counter = counter + 1 again, if this bar is leg out and green then we have ourselves a holding level. 
+
+{
+If barstatus(1) = 2 then 
+Begin
+	//legin
+	If legin = false then 
+	Begin	
+		If truerange <> 0 then 
+		begin
+			if truecandlebodyrange / truerange > .66 and  truerange > ATR then legin = true else legin = false;
+		end;
+		If greenbar = true then greenlegin = true else greenlegin = false; 
+	end;
+	
+	//base(s)
+	If legin = true then 
+	Begin
+		counter = counter + 1;
+		If counter >= 2 then 
+		Begin
+		If greenlegin = true then 
+		Begin
+			If truerange <> 0 then 
+			begin 
+				if truecandlebodyrange / truerange < .66  and greenbar = true then basecondition = true else basecondition = false;
+			end;
+			If greenbar = false then legin = false;
+		end;
+		If greenlegin = false then
+		Begin
+			If truerange <> 0 then 
+			begin 
+				if truecandlebodyrange / truerange < .66 and greenbar = false then basecondition = true else basecondition = false;
+			end;
+			If greenbar = true then legin = false;		
+		end;
+		end;
+	end;
+	
+	//legout
+	If legin = true and basecondition = true then 
+	Begin	
+		If greenlegin = true then
+		Begin
+			If truerange <> 0 then 
+			begin 
+				if truecandlebodyrange / truerange > .66 and truerange > ATR then legout = true else legout = false;
+			end;
+		end;
+		If greenlegin = false then
+		Begin
+			If truerange <> 0 then 
+			begin 
+				if truecandlebodyrange / truerange > .66 and truerange > ATR then legout = true else legout = false; 
+			end;
+		end;
+	end;
+	
+	//all conditions meet:
+	If legin = true and basecondition = true and legout = true then 
+	Begin
+		plot1(close, !("holdinglvl?"));
+		print("asscheeks");
+	end
+	Else
+	Begin
+		//Setplotcolor(1, transparent);
+	end;
+	
+	
+	//reset
+	If legin = false then 
+	Begin
+		counter = 0;
+	end;	}
+	
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////	
+	
+	
+	
+	
+	
+	
+	
+	//1base
+	/////////////////////////
+If barnumber > 5 and truerange <> 0 and truerange[1] <> 0 and truerange[2] <> 0 and barstatus(1) = 2 then 
+Begin
+	if close[2] > open[2] and truecandlebodyrange[2] / truerange[2] > .66 and  truerange[2] > ATR then condition1 = true else condition1 = false;
+	if close[1] > open[1] and truerange[1] < truerange[2] and truecandlebodyrange[1] / truerange[1] < .66  then condition2 = true else condition2 = false;
+	if close[0] > open[0] and truecandlebodyrange / truerange > .66 and truerange > ATR then condition3 = true else condition3 = false;
+end;
+If condition1 = true and condition2 = true and condition3 = true then 
+begin
+	//plot2(close, !("3bar setup"));
+	Condition99 = true;
+	//print("amazinf");
+end
+Else
+Begin
+	Condition99 = false;
+end;	
+
+//2base
+If barnumber > 5 and truerange <> 0 and truerange[1] <> 0 and truerange[2] <> 0  and truerange[3] <> 0 and barstatus(1) = 2 then 
+Begin
+	if close[3] > open[3] and truecandlebodyrange[3] / truerange[3] > .66 and  truerange[3] > ATR then condition4 = true else condition4 = false;
+	if close[2] > open[2] and truerange[2] < truerange[3] and truecandlebodyrange[2] / truerange[2] < .66  then condition5 = true else condition5 = false;
+	if close[1] > open[1] and truerange[1] < truerange[3] and truecandlebodyrange[1] / truerange[1] < .66  then condition6 = true else condition6 = false;
+	if close[0] > open[0] and truecandlebodyrange / truerange > .66 and truerange > ATR then condition7 = true else condition7 = false;
+end;
+If condition4 = true and condition5 = true and condition6 = true and condition7 = true then 
+begin
+	//plot3(close, !("4bar setup"));
+	Condition98 = true; 
+	//print("amazinf");
+end
+Else
+Begin
+	Condition98 = false;
+end;	
+
+//3base
+If barnumber > 5 and truerange <> 0 and truerange[1] <> 0 and truerange[2] <> 0  and truerange[3] <> 0 and truerange[4] <> 0 and barstatus(1) = 2 then 
+Begin
+	if close[4] > open[4] and truecandlebodyrange[4] / truerange[4] > .66 and  truerange[4] > ATR then condition8 = true else condition8 = false;
+	if close[3] > open[3] and truerange[3] < truerange[4] and truecandlebodyrange[3] / truerange[3] < .66  then condition9 = true else condition9 = false;
+	if close[2] > open[2] and truerange[2] < truerange[4] and truecandlebodyrange[2] / truerange[2] < .66  then condition10 = true else condition10 = false;
+	if close[1] > open[1] and truerange[1] < truerange[4] and truecandlebodyrange[1] / truerange[1] < .66  then condition11 = true else condition11 = false;
+	if close[0] > open[0] and truecandlebodyrange / truerange > .66 and truerange > ATR then condition12 = true else condition12 = false;
+end;
+If condition8 = true and condition9 = true and condition10 = true and condition11 = true and condition12 = true then 
+begin
+	//plot4(close, !("5bar setup"));
+	Condition97 = true;
+	//print("amazinf");
+end
+Else
+Begin
+	Condition97 = false;
+end;
+
+If date > 1190101 then 
+Begin
+	If (condition97 = true or condition98 = true or condition99 = true) then plot1(close) else noplot(1) ;
+	if (condition97 = true or condition98 = true or condition99 = true) then condition50 = true;
+	If condition50 = true then plot5(true);
+	If condition50 = false then plot5(false);
+end;
+
+
+
+
+
